@@ -1,4 +1,4 @@
-# test-ocrv
+# tz-ocrv
 
 ## Project setup
 ```

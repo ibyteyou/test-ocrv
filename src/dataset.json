@@ -1,0 +1,50 @@
+[
+  {
+    "id": 1,
+    "name": "admin",
+    "parent_id": null,
+    "type": "folder",
+    "x": 0.10,
+    "y": 0.50
+  },
+  {
+    "id": 2,
+    "name": "sample_07",
+    "parent_id": 1,
+    "type": "folder",
+    "x": 0.35,
+    "y": 0.65
+  },
+  {
+    "id": 3,
+    "name": "sample_08",
+    "parent_id": 1,
+    "type": "folder",
+    "x": 0.35,
+    "y": 0.35
+  },
+  {
+    "id": 4,
+    "name": "sample_07",
+    "parent_id": 2,
+    "type": "table",
+    "x": 0.65,
+    "y": 0.65
+  },
+  {
+    "id": 5,
+    "name": "sample_08",
+    "parent_id": 3,
+    "type": "table",
+    "x": 0.65,
+    "y": 0.35
+  },
+  {
+    "id": 6,
+    "name": "sample_09",
+    "parent_id": [4, 5],
+    "type": "table",
+    "x": 0.90,
+    "y": 0.50
+  }
+]
