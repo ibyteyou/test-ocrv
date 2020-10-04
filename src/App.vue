@@ -1,9 +1,16 @@
 <template lang="pug">
   #app
+    textarea(v-if="renamableItemId", ref="nameTextarea", :style="nameTextareaStyle" @keydown.enter="renameSave")
     v-stage(ref="stage"
       :config="configKonva"
       @dragstart="handleDragstart"
       @dragend="handleDragend")
+      v-layer(ref="lines")
+        template(v-for="item in list")
+          template(v-if="Array.isArray(item.parent_id)")
+            v-line(v-for="(v, k) in item.parent_id", :config="getLineConfig(item, k)", :key="k")
+          template(v-else-if="typeof item.parent_id === 'number'")
+            v-line(:config="getLineConfig(item)")
       v-layer(ref="layer")
         v-group(v-for="item in list"
           :key="item.id"
@@ -16,7 +23,8 @@
             y: item.y,
           }`
           @mouseover="handleMouseover"
-          @mouseout="handleMouseout")
+          @mouseout="handleMouseout"
+          @mouseup="handleMouseup")
           v-rect(:config=`{
             width: BLOCK_WIDTH,
             height: BLOCK_HEIGHT,
@@ -47,7 +55,8 @@
             text: item.name,
             y: BLOCK_HEIGHT + 10,
             width: BLOCK_WIDTH
-          }`)
+          }`
+          @dblclick="rename(item)")
 </template>
 
 <script>
@@ -74,14 +83,6 @@
   function getTypeColor (type) {
     return typeColors[type] || GRAY_COLOR
   }
-  function getTypeImage (type) {
-    const imageObj = new Image()
-    imageObj.onload = function () {
-      console.log(`"${type}" - success`)
-    }
-    imageObj.src = typeImages[type]
-    return imageObj
-  }
 
   export default {
     data: () => ({
@@ -92,11 +93,62 @@
       list: [],
       dragItemId: null,
       configKonva: {
-        width: width,
-        height: height
+        width,
+        height
+      },
+      renamableItemId: null,
+      nameTextareaStyle: {
+        position: 'absolute',
+        border: 'none',
+        padding: '0px',
+        margin: '0px',
+        overflow: 'hidden',
+        background: 'none',
+        outline: 'none',
+        resize: 'none',
+        transformOrigin: 'left top',
+        top: null,
+        left: null,
+        width: null,
+        height: null,
+        fontSize: null,
+        lineHeight: null,
+        fontFamily: null,
+        textAlign: null,
+        color: null
       }
     }),
     methods: {
+      draw () {
+        this.$refs.stage.getNode().draw()
+      },
+      getLineConfig (...args) {
+        return {
+          x: 0,
+          y: 0,
+          points: this.getLinePoints(...args),
+          tension: 0.5,
+          closed: true,
+          stroke: 'black'
+        }
+      },
+      getLinePoints (item, parentIdKey) {
+        // console.log(`getLinePoints(${parentIdKey})`, item)
+        if (!item.parent_id) return null
+
+        const parent_id = Array.isArray(item.parent_id) ? item.parent_id[parentIdKey] : item.parent_id
+        const parent = this.list.find(i => i.id === parent_id)
+        return [item.x, item.y + (BLOCK_HEIGHT / 2), parent.x + BLOCK_WIDTH, parent.y + (BLOCK_HEIGHT / 2)]
+      },
+      getTypeImage (type) {
+        const imageObj = new Image()
+        imageObj.onload = () => {
+          this.draw()
+          // console.log(`"${type}" - success`)
+        }
+        imageObj.src = typeImages[type]
+        return imageObj
+      },
       handleDragstart (e) {
         // save drag element:
         this.dragItemId = e.target.id()
@@ -114,6 +166,39 @@
       },
       handleMouseout () {
         document.body.style.cursor = 'default'
+      },
+      handleMouseup (e) {
+        const id = e.currentTarget.attrs.id
+        const _lastPos = e.currentTarget._lastPos
+
+        const listItem = this.list.find(i => i.id === id)
+        listItem.x = _lastPos.x
+        listItem.y =  _lastPos.y
+
+        console.log(_lastPos.x / width, _lastPos.y / height)
+      },
+      rename (item) {
+        this.renamableItemId = item.id
+        // this.nameTextareaStyle.top = areaPosition.y + 'px';
+        // this.nameTextareaStyle.left = areaPosition.x + 'px';
+        // const textNode =
+        // this.nameTextareaStyle.width = textNode.width() - textNode.padding() * 2 + 'px';
+        // this.nameTextareaStyle.height = textNode.height() - textNode.padding() * 2 + 5 + 'px';
+        // this.nameTextareaStyle.fontSize = textNode.fontSize() + 'px';
+        // this.nameTextareaStyle.lineHeight = textNode.lineHeight();
+        // this.nameTextareaStyle.fontFamily = textNode.fontFamily();
+        // this.nameTextareaStyle.textAlign = textNode.align();
+        // this.nameTextareaStyle.color = textNode.fill();
+        this.$nextTick(() => {
+          this.$refs.nameTextarea.value = item.name
+          this.$refs.nameTextarea.focus()
+        })
+      },
+      renameSave (e) {
+        this.list.find(item => item.id === this.renamableItemId).name = e.target.value
+        this.renamableItemId = null
+        e.preventDefault()
+        console.log('@renameSave', e)
       }
     },
     mounted () {
@@ -123,7 +208,7 @@
           x: d.x * width - (BLOCK_WIDTH / 2),
           y: d.y * height - (BLOCK_HEIGHT / 2),
           fill: getTypeColor(d.type),
-          image: getTypeImage(d.type)
+          image: this.getTypeImage(d.type)
         })
       }
     }
