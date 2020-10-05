@@ -6,26 +6,8 @@
       @dragstart="handleDragstart"
       @dragend="handleDragend")
       v-layer(ref="lines")
-        //- v-shape(:config=`{
-        //-   sceneFunc: function(context, shape) {
-        //-     context.beginPath();
-        //-     context.moveTo(0, 0);
-        //-     context.lineTo(220, 80);
-        //-     context.lineTo(80, 200);
-        //-     context.closePath();
-        //-
-        //-     // special Konva.js method
-        //-     context.fillStrokeShape(shape);
-        //-   },
-        //-   fill: 'black',
-        //-   stroke: 'black',
-        //-   strokeWidth: 1
-        //- }`)
-        template(v-for="item in list")
-          template(v-if="Array.isArray(item.parent_id)")
-            v-line(v-for="(v, k) in item.parent_id", :config="getLineConfig(item, k)", :key="k")
-          template(v-else-if="typeof item.parent_id === 'number'")
-            v-line(:config="getLineConfig(item)")
+        v-line(v-for="line in lines", :config="line")
+        v-shape(v-for="tie in ties", :config="tie")
       v-layer(ref="layer")
         v-group(v-for="item in list"
           :key="item.id"
@@ -48,10 +30,7 @@
             innerRadius: 30,
             outerRadius: 50,
             fill: item.fill,
-            /* fillPatternImage: image, // WHY IT NOT WORKS? */
             opacity: 1,
-            /* scaleX: dragItemId === item.id ? 1.2 : 1,
-            scaleY: dragItemId === item.id ? 1.2 : 1, */
             shadowColor: 'black',
             shadowBlur: 10,
             shadowOffsetX: dragItemId === item.id ? 6 : 3,
@@ -105,13 +84,16 @@
       BLOCK_WIDTH,
       dataset, // debug
       image: null,
+      lastId: null,
       list: [],
       dragItemId: null,
       configKonva: {
         width,
         height
       },
+      lines: [],
       renamableItemId: null,
+      ties: [],
       nameTextareaStyle: {
         position: 'absolute',
         border: 'none',
@@ -134,6 +116,52 @@
       }
     }),
     methods: {
+      calcLines () {
+        const lines = []
+
+        for (let item of this.list) {
+          if (Array.isArray(item.parent_id)) {
+            for (let parIdKey in item.parent_id) {
+              lines.push(this.getLineConfig(item, parIdKey))
+            }
+          } else if (typeof item.parent_id === 'number') {
+            lines.push(this.getLineConfig(item))
+          }
+        }
+
+        this.lines = lines
+      },
+      calcTies () {
+        let ties = []
+        for (let line of this.lines) {
+          ties = ties.concat(this.lines.filter(l => (line.id !== l.id && line.parent_id === l.parent_id)
+            || (line.id === l.id && line.parent_id !== l.parent_id)))
+        }
+        this.ties = ties.map(t => {
+          const midX = (t.points[0] + t.points[t.bezier ? 6 : 2]) / 2
+          const midY = (t.points[1] + t.points[t.bezier ? 7 : 3]) / 2
+          let dx = t.points[t.bezier ? 6 : 2] - t.points[t.bezier ? 2 : 0]
+          let dy = t.points[t.bezier ? 7 : 3] - t.points[t.bezier ? 3 : 1]
+          let angle = Math.atan2(dy, dx) * 180 / Math.PI
+
+          return {
+            sceneFunc (context, shape) {
+              context.beginPath()
+              context.moveTo(0, 0)
+              context.lineTo(12, 4)
+              context.lineTo(12, -4)
+              context.closePath()
+              context.fillStrokeShape(shape)
+            },
+            fill: 'black',
+            stroke: 'black',
+            strokeWidth: 1,
+            x: midX,
+            y: midY,
+            rotation: angle
+          }
+        })
+      },
       draw () {
         this.$refs.stage.getNode().draw()
       },
@@ -148,13 +176,15 @@
         }
 
         return {
+          id: item.id,
+          parent_id: parentIdKey ? item.parent_id[parentIdKey] : item.parent_id,
           x: 0,
           y: 0,
           points,
           tension: 0,
           bezier,
           closed: !bezier,
-          stroke: item === this.list[this.list.length - 1] ? 'green' : 'black'
+          stroke: item.id === this.lastId ? '#64915a' : 'black'
         }
       },
       getLinePoints (item, parentIdKey) {
@@ -196,9 +226,14 @@
         const id = e.currentTarget.attrs.id
         const _lastPos = e.currentTarget._lastPos
 
+        if (!_lastPos) return
+
         const listItem = this.list.find(i => i.id === id)
         listItem.x = _lastPos.x
         listItem.y =  _lastPos.y
+
+        this.calcLines()
+        this.calcTies()
       },
       rename (item) {
         this.renamableItemId = item.id
@@ -225,7 +260,11 @@
       }
     },
     mounted () {
+      let lastId = 0
       for (let d of dataset) {
+        if (d.id > lastId) {
+          lastId = d.id
+        }
         this.list.push({
           ...d,
           x: d.x * width - (BLOCK_WIDTH / 2),
@@ -234,6 +273,10 @@
           image: this.getTypeImage(d.type)
         })
       }
+      this.lastId = lastId
+
+      this.calcLines()
+      this.calcTies()
     }
   }
 </script>
