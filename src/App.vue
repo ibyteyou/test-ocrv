@@ -10,8 +10,8 @@
       //- @dragstart="handleDragstart"
       //- @dragend="handleDragend"
       v-layer(ref="lines")
-        v-line(v-for="line in lines", :config="line")
-        v-shape(v-for="tie in ties", :config="tie")
+        v-line(v-for="line in lines", :config="line", :key="`line--${line.id}_${line.parent_id}`")
+        v-shape(v-for="tie in ties", :config="tie", :key="tie.key")
       v-layer(ref="layer")
         v-group(v-for="item in list"
           :key="item.id"
@@ -167,7 +167,8 @@
             strokeWidth: 1,
             x: midX,
             y: midY,
-            rotation: angle
+            rotation: angle,
+            key: `tie--${t.id}_${t.parent_id}`
           }
         })
       },
