@@ -23,6 +23,7 @@
             x: item.x,
             y: item.y,
           }`
+          @contextmenu="handleContextMenu"
           @mouseover="handleMouseover"
           @mouseout="handleMouseout"
           @mouseup="handleMouseup")
@@ -55,6 +56,10 @@
             width: BLOCK_WIDTH
           }`
           @dblclick="rename(item)")
+    ul.context-menu(v-if="contextMenu", :style="contextMenuPos")
+      li(@click="(rename(list.find(l => l.id === contextMenu)), closeContextMenu())") Переименовать
+      li Отвязать
+      li Привязать
 </template>
 
 <script>
@@ -86,6 +91,8 @@
     data: () => ({
       BLOCK_HEIGHT,
       BLOCK_WIDTH,
+      contextMenu: null,
+      contextMenuPos: null,
       dataset, // debug
       image: null,
       lastId: null,
@@ -172,6 +179,9 @@
           }
         })
       },
+      closeContextMenu () {
+        this.contextMenu = null
+      },
       draw () {
         this.$refs.stage.getNode().draw()
       },
@@ -227,14 +237,28 @@
       //   this.dragItemId = null
       // },
       handleEscKeyup () {
-        if (!this.renamedItemId) return
+        console.log('блять')
+        if (!this.contextMenu && !this.renamedItemId) return
 
-        this.renamedItemId = null
+        if (this.contextMenu) {
+          this.contextMenu = null
+        } else if (this.renamedItemId) {
+          this.renamedItemId = null
+        }
       },
       handleClick () {
-        if (!this.renamedItemId) return
+        if (!this.contextMenu && !this.renamedItemId) return
 
-        this.renamedItemId = null
+        if (this.contextMenu) {
+          this.contextMenu = null
+        } else if (this.renamedItemId) {
+          this.renamedItemId = null
+        }
+      },
+      handleContextMenu (e) {
+        e.evt.preventDefault()
+        this.contextMenu = e.currentTarget.VueComponent.config.id
+        this.contextMenuPos = { top: `${e.evt.clientY}px`, left: `${e.evt.clientX}px` }
       },
       handleMouseover () {
         document.body.style.cursor = 'pointer'
@@ -329,4 +353,22 @@
       border: none
       outline: none
       resize: none
+  ul.context-menu
+    position: absolute
+    width: 200px
+    list-style: none
+    margin: 0
+    padding: 0
+    cursor: pointer
+    background-color: #fff
+    border: solid 1px #dfdfdf
+    li
+      display: flex
+      justify-content: space-between
+      padding: 12px 6px
+      border-bottom: solid 1px #dfdfdf
+      &:hover
+        background-color: #f5f5f5
+      &:last-child
+        border-bottom: none
 </style>
