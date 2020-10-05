@@ -1,10 +1,14 @@
 <template lang="pug">
-  #app
-    textarea(v-if="renamableItemId", ref="nameTextarea", :style="nameTextareaStyle" @keydown.enter="renameSave")
-    v-stage(ref="stage"
+  #app(@keyup.esc="handleEscKeyup")
+    div.modal-rename(v-if="renamedItemId")
+      textarea(ref="nameTextarea" @keydown.enter="renameSave")
+      //- :style="nameTextareaStyle"
+    v-stage(:class="{ 'filter-hidden': renamedItemId }"
+      ref="stage"
       :config="configKonva"
-      @dragstart="handleDragstart"
-      @dragend="handleDragend")
+      @click="handleClick")
+      //- @dragstart="handleDragstart"
+      //- @dragend="handleDragend"
       v-layer(ref="lines")
         v-line(v-for="line in lines", :config="line")
         v-shape(v-for="tie in ties", :config="tie")
@@ -12,7 +16,7 @@
         v-group(v-for="item in list"
           :key="item.id"
           :config=`{
-            draggable: true,
+            draggable: !disabled,
             id: item.id,
             width: BLOCK_WIDTH,
             height: BLOCK_HEIGHT,
@@ -92,29 +96,34 @@
         height
       },
       lines: [],
-      renamableItemId: null,
+      renamedItemId: null,
       ties: [],
-      nameTextareaStyle: {
-        position: 'absolute',
-        border: 'none',
-        padding: '0px',
-        margin: '0px',
-        overflow: 'hidden',
-        background: 'none',
-        outline: 'none',
-        resize: 'none',
-        transformOrigin: 'left top',
-        top: null,
-        left: null,
-        width: null,
-        height: null,
-        fontSize: null,
-        lineHeight: null,
-        fontFamily: null,
-        textAlign: null,
-        color: null
-      }
+      // nameTextareaStyle: {
+      //   position: 'absolute',
+      //   border: 'none',
+      //   padding: '0px',
+      //   margin: '0px',
+      //   overflow: 'hidden',
+      //   background: 'none',
+      //   outline: 'none',
+      //   resize: 'none',
+      //   transformOrigin: 'left top',
+      //   top: null,
+      //   left: null,
+      //   width: null,
+      //   height: null,
+      //   fontSize: null,
+      //   lineHeight: null,
+      //   fontFamily: null,
+      //   textAlign: null,
+      //   color: null
+      // }
     }),
+    computed: {
+      disabled () {
+        return !!this.renamedItemId
+      }
+    },
     methods: {
       calcLines () {
         const lines = []
@@ -204,17 +213,27 @@
         imageObj.src = typeImages[type]
         return imageObj
       },
-      handleDragstart (e) {
-        // save drag element:
-        this.dragItemId = e.target.id()
-        // move current element to the top:
-        const item = this.list.find(i => i.id === this.dragItemId)
-        const index = this.list.indexOf(item)
-        this.list.splice(index, 1)
-        this.list.push(item)
+      // handleDragstart (e) {
+      //   // save drag element:
+      //   this.dragItemId = e.target.id()
+      //   // move current element to the top:
+      //   const item = this.list.find(i => i.id === this.dragItemId)
+      //   const index = this.list.indexOf(item)
+      //   this.list.splice(index, 1)
+      //   this.list.push(item)
+      // },
+      // handleDragend () {
+      //   this.dragItemId = null
+      // },
+      handleEscKeyup () {
+        if (!this.renamedItemId) return
+
+        this.renamedItemId = null
       },
-      handleDragend () {
-        this.dragItemId = null
+      handleClick () {
+        if (!this.renamedItemId) return
+
+        this.renamedItemId = null
       },
       handleMouseover () {
         document.body.style.cursor = 'pointer'
@@ -236,7 +255,7 @@
         this.calcTies()
       },
       rename (item) {
-        this.renamableItemId = item.id
+        this.renamedItemId = item.id
         // this.nameTextareaStyle.top = areaPosition.y + 'px';
         // this.nameTextareaStyle.left = areaPosition.x + 'px';
         // const textNode =
@@ -253,10 +272,10 @@
         })
       },
       renameSave (e) {
-        this.list.find(item => item.id === this.renamableItemId).name = e.target.value
-        this.renamableItemId = null
+        this.list.find(item => item.id === this.renamedItemId).name = e.target.value
+        this.renamedItemId = null
         e.preventDefault()
-        console.log('@renameSave', e)
+        // console.log('@renameSave', e)
       }
     },
     mounted () {
@@ -291,4 +310,22 @@
     -moz-osx-font-smoothing: grayscale
     text-align: center
     color: #2c3e50
+  .filter-hidden
+    opacity: 0.3456789
+    background-color: rgba(0, 0, 0, 0.3456789)
+    filter: brightness(0.654321)
+  .modal-rename
+    position: absolute
+    width: 260px
+    height: 64px
+    background-color: #fff
+    z-index: 1
+    left: 0
+    right: 0
+    margin: auto
+    textarea
+      font-size: 32px
+      border: none
+      outline: none
+      resize: none
 </style>
