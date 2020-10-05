@@ -6,6 +6,21 @@
       @dragstart="handleDragstart"
       @dragend="handleDragend")
       v-layer(ref="lines")
+        //- v-shape(:config=`{
+        //-   sceneFunc: function(context, shape) {
+        //-     context.beginPath();
+        //-     context.moveTo(0, 0);
+        //-     context.lineTo(220, 80);
+        //-     context.lineTo(80, 200);
+        //-     context.closePath();
+        //-
+        //-     // special Konva.js method
+        //-     context.fillStrokeShape(shape);
+        //-   },
+        //-   fill: 'black',
+        //-   stroke: 'black',
+        //-   strokeWidth: 1
+        //- }`)
         template(v-for="item in list")
           template(v-if="Array.isArray(item.parent_id)")
             v-line(v-for="(v, k) in item.parent_id", :config="getLineConfig(item, k)", :key="k")
@@ -122,14 +137,24 @@
       draw () {
         this.$refs.stage.getNode().draw()
       },
-      getLineConfig (...args) {
+      getLineConfig (item, parentIdKey) {
+        let points = this.getLinePoints(item, parentIdKey)
+        const bezier = points[0] !== points[2] && points[1] !== points[3]
+        if (bezier) {
+          let [xStart, yStart, xEnd, yEnd] = points
+          let xMiddle = (xStart + xEnd) / 2
+
+          points = [xStart, yStart, xMiddle, yStart, xMiddle, yEnd, xEnd, yEnd]
+        }
+
         return {
           x: 0,
           y: 0,
-          points: this.getLinePoints(...args),
-          tension: 0.5,
-          closed: true,
-          stroke: 'black'
+          points,
+          tension: 0,
+          bezier,
+          closed: !bezier,
+          stroke: item === this.list[this.list.length - 1] ? 'green' : 'black'
         }
       },
       getLinePoints (item, parentIdKey) {
@@ -174,8 +199,6 @@
         const listItem = this.list.find(i => i.id === id)
         listItem.x = _lastPos.x
         listItem.y =  _lastPos.y
-
-        console.log(_lastPos.x / width, _lastPos.y / height)
       },
       rename (item) {
         this.renamableItemId = item.id
