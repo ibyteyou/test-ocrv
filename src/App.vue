@@ -1,8 +1,6 @@
 <template lang="pug">
   #app(@keyup.esc="handleEscKeyup")
-    div.modal-rename(v-if="renamedItemId")
-      textarea(ref="nameTextarea" @keydown.enter="renameSave")
-      //- :style="nameTextareaStyle"
+    modal-rename(ref="modalRename" @input="renamedItemId = $event")
     v-stage(:class="{ 'filter-hidden': renamedItemId }"
       ref="stage"
       :config="configKonva"
@@ -13,61 +11,22 @@
         v-line(v-for="line in lines", :config="line", :key="`line--${line.id}_${line.parent_id}`")
         v-shape(v-for="tie in ties", :config="tie", :key="tie.key")
       v-layer(ref="layer")
-        v-group(v-for="item in list"
+        el-icon(v-for="item in list"
+          :disabled="disabled"
           :key="item.id"
-          :config=`{
-            draggable: !disabled,
-            id: item.id,
-            width: BLOCK_WIDTH,
-            height: BLOCK_HEIGHT,
-            x: item.x,
-            y: item.y,
-            opacity: tieId && (tieId === item.id || tieAlreadyTied.includes(item.id)) ? .25 : 1
-          }`
-          @contextmenu="handleContextMenu"
-          @mouseover="handleMouseover"
-          @mouseout="handleMouseout"
+          :item="item"
+          @context-menu="$refs.contextMenu.set"
           @mouseup="handleMouseup")
-          v-rect(:config=`{
-            width: BLOCK_WIDTH,
-            height: BLOCK_HEIGHT,
-            x: 0,
-            y: 0,
-            innerRadius: 30,
-            outerRadius: 50,
-            fill: item.fill,
-            opacity: 1,
-            shadowColor: 'black',
-            shadowBlur: 10,
-            shadowOffsetX: dragItemId === item.id ? 6 : 3,
-            shadowOffsetY: dragItemId === item.id ? 6 : 3,
-            shadowOpacity: 0.2345
-          }`)
-          v-image(:config=`{
-            image: item.image,
-            width: BLOCK_WIDTH,
-            height: BLOCK_HEIGHT,
-            x: 0,
-            y: 0,
-          }`)
-          v-text(:config=`{
-            align: 'center',
-            text: item.name,
-            y: BLOCK_HEIGHT + 10,
-            width: BLOCK_WIDTH
-          }`
-          @dblclick="rename(item)")
-    ul.context-menu(v-if="contextMenu", :style="contextMenuPos")
-      li(@click="(rename(contextMenu), closeContextMenu())") Переименовать
-      li(v-if="contextMenu.parent_id" @click="untie") Отвязать
-      li(@click="tie") Привязать
+    context-menu(ref="contextMenu" @tie="tie" @untie="untie")
 </template>
 
 <script>
-  // import Konva from 'konva'
   import dataset from './dataset'
   import folderUrl from './assets/images/folder.png'
   import tableUrl from './assets/images/table.png'
+  import contextMenu from './components/context-menu'
+  import elIcon from './components/el-icon'
+  import modalRename from './components/modal-rename'
 
   const width = window.innerWidth
   const height = window.innerHeight
@@ -88,50 +47,43 @@
     return typeColors[type] || GRAY_COLOR
   }
 
+  export {
+    BLOCK_HEIGHT,
+    BLOCK_WIDTH
+  }
+
   export default {
+    components: { contextMenu, elIcon, modalRename },
+    provide () {
+      return {
+        list: this.list,
+        operations: this.operations,
+        tieAlreadyTied: this.tieAlreadyTied
+      }
+    },
     data: () => ({
       BLOCK_HEIGHT,
       BLOCK_WIDTH,
-      contextMenu: null,
-      contextMenuPos: null,
       dataset, // debug
       image: null,
       lastId: null,
       list: [],
-      dragItemId: null,
       configKonva: {
         width,
         height
       },
       lines: [],
+      operations: {
+        dragItemId: null,
+        tieId: null
+      },
       renamedItemId: null,
       tieAlreadyTied: [],
-      tieId: null,
-      ties: [],
-      // nameTextareaStyle: {
-      //   position: 'absolute',
-      //   border: 'none',
-      //   padding: '0px',
-      //   margin: '0px',
-      //   overflow: 'hidden',
-      //   background: 'none',
-      //   outline: 'none',
-      //   resize: 'none',
-      //   transformOrigin: 'left top',
-      //   top: null,
-      //   left: null,
-      //   width: null,
-      //   height: null,
-      //   fontSize: null,
-      //   lineHeight: null,
-      //   fontFamily: null,
-      //   textAlign: null,
-      //   color: null
-      // }
+      ties: []
     }),
     computed: {
       disabled () {
-        return !!this.renamedItemId || !!this.tieId
+        return !!this.renamedItemId || !!this.operations.tieId
       }
     },
     methods: {
@@ -183,9 +135,6 @@
           }
         })
       },
-      closeContextMenu () {
-        this.contextMenu = null
-      },
       draw () {
         this.$refs.stage.getNode().draw()
       },
@@ -230,19 +179,18 @@
       },
       handleDragstart (e) {
         // save drag element:
-        this.dragItemId = e.target.id()
-
+        this.operations.dragItemId = e.target.id()
         this.__clonedDragEl = e.target.clone()
         this.__clonedDragEl.setOpacity(.25)
         this.$refs.layer.getNode().add(this.__clonedDragEl)
         // move current element to the top:
-        // const item = this.list.find(i => i.id === this.dragItemId)
+        // const item = this.list.find(i => i.id === this.operations.dragItemId)
         // const index = this.list.indexOf(item)
         // this.list.splice(index, 1)
         // this.list.push(item)
       },
       handleDragend () {
-        this.dragItemId = null
+        this.operations.dragItemId = null
         this.__clonedDragEl.remove()
         this.__clonedDragEl = null
 
@@ -250,53 +198,41 @@
         this.calcTies()
       },
       handleEscKeyup () {
-        if (!this.contextMenu && !this.renamedItemId) return
+        if (!this.$refs.contextMenu.model && !this.renamedItemId) return
 
-        if (this.contextMenu) {
-          this.contextMenu = null
+        if (this.$refs.contextMenu.model) {
+          this.$refs.contextMenu.model = null
         } else if (this.renamedItemId) {
           this.renamedItemId = null
         }
       },
       handleClick () {
-        if (!this.contextMenu && !this.renamedItemId) return
+        if (!this.$refs.contextMenu.model && !this.renamedItemId) return
 
-        if (this.contextMenu) {
-          this.contextMenu = null
+        if (this.$refs.contextMenu.model) {
+          this.$refs.contextMenu.model = null
         } else if (this.renamedItemId) {
           this.renamedItemId = null
         }
       },
-      handleContextMenu (e) {
-        e.evt.preventDefault()
-        this.contextMenu = this.list.find(l => l.id === e.currentTarget.VueComponent.config.id)
-        this.contextMenuPos = { top: `${e.evt.clientY}px`, left: `${e.evt.clientX}px` }
-      },
-      handleMouseover () {
-        document.body.style.cursor = 'pointer'
-      },
-      handleMouseout () {
-        document.body.style.cursor = 'default'
-      },
       handleMouseup (e) {
-        console.log(e)
         const id = e.currentTarget.attrs.id
 
-        if (this.tieId) {
+        if (this.operations.tieId) {
           const item = this.list.find(l => l.id === id)
           if (Array.isArray(item.parent_id)) {
-            if (item.parent_id.includes(this.tieId)) return // already tied?
-            item.parent_id.push(this.tieId)
+            if (item.parent_id.includes(this.operations.tieId)) return // already tied?
+            item.parent_id.push(this.operations.tieId)
           } else if (typeof item.parent_id === 'number') {
-            if (item.parent_id === this.tieId) return // already tied!
-            item.parent_id = [item.parent_id, this.tieId]
+            if (item.parent_id === this.operations.tieId) return // already tied!
+            item.parent_id = [item.parent_id, this.operations.tieId]
           } else {
-            item.parent_id = this.tieId
+            item.parent_id = this.operations.tieId
           }
           // this.__tieNode.setOpacity(1)
           this.draw()
-          this.tieId = null
-          this.tieAlreadyTied = []
+          this.operations.tieId = null
+          this.tieAlreadyTied.splice(0, this.tieAlreadyTied.length)
           // this.__tieNode = null
         } else {
           const _lastPos = e.currentTarget._lastPos
@@ -311,49 +247,19 @@
         this.calcLines()
         this.calcTies()
       },
-      rename (item) {
-        this.renamedItemId = item.id
-        // this.nameTextareaStyle.top = areaPosition.y + 'px';
-        // this.nameTextareaStyle.left = areaPosition.x + 'px';
-        // const textNode =
-        // this.nameTextareaStyle.width = textNode.width() - textNode.padding() * 2 + 'px';
-        // this.nameTextareaStyle.height = textNode.height() - textNode.padding() * 2 + 5 + 'px';
-        // this.nameTextareaStyle.fontSize = textNode.fontSize() + 'px';
-        // this.nameTextareaStyle.lineHeight = textNode.lineHeight();
-        // this.nameTextareaStyle.fontFamily = textNode.fontFamily();
-        // this.nameTextareaStyle.textAlign = textNode.align();
-        // this.nameTextareaStyle.color = textNode.fill();
-        this.$nextTick(() => {
-          this.$refs.nameTextarea.value = item.name
-          this.$refs.nameTextarea.focus()
-        })
-      },
-      renameSave (e) {
-        this.list.find(item => item.id === this.renamedItemId).name = e.target.value
-        this.renamedItemId = null
-        e.preventDefault()
-        // console.log('@renameSave', e)
-      },
-      tie () {
-        const groupEl = this.$refs.layer.$children.find(c => c.config.id === this.contextMenu.id)
-        if (!groupEl) throw Error('child not finded!')
-        const node = groupEl.getNode()
-        if (!node) throw Error('node child not finded!')
-
-        this.tieId = this.contextMenu.id
-        this.tieAlreadyTied = this.list
-          .filter(l => Array.isArray(l.parent_id) ? l.parent_id.includes(this.tieId) : l.parent_id === this.tieId)
+      tie (tieId) {
+        this.operations.tieId = tieId
+        this.list
+          .filter(l => Array.isArray(l.parent_id) ? l.parent_id.includes(this.operations.tieId) : l.parent_id === this.operations.tieId)
           .map(l => l.id)
-        // this.__tieNode = node
-        // node.setOpacity(.25)
+          .forEach(item => this.tieAlreadyTied.push(item))
+
         this.draw()
-        this.closeContextMenu()
+        this.$refs.contextMenu.close()
       },
       untie () {
-        this.contextMenu.parent_id = null
         this.calcLines()
         this.calcTies()
-        this.closeContextMenu()
       }
     },
     mounted () {
@@ -406,22 +312,4 @@
       border: none
       outline: none
       resize: none
-  ul.context-menu
-    position: absolute
-    width: 200px
-    list-style: none
-    margin: 0
-    padding: 0
-    cursor: pointer
-    background-color: #fff
-    border: solid 1px #dfdfdf
-    li
-      display: flex
-      justify-content: space-between
-      padding: 12px 6px
-      border-bottom: solid 1px #dfdfdf
-      &:hover
-        background-color: #f5f5f5
-      &:last-child
-        border-bottom: none
 </style>
